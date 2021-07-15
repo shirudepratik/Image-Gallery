@@ -1,0 +1,243 @@
+import React from 'react';
+import { Router, Route } from "react-router-dom";
+import HomePage from './HomePage';
+import { createBrowserHistory as createHistory } from 'history'
+import Navbar from 'react-bootstrap/Navbar';
+import Nav from 'react-bootstrap/Nav';
+import './App.css';
+import ImageSearchPage from './ImageSearchPage';
+import VideoSearchPage from './VideoSearchPage';
+const history = createHistory();
+function App() {
+  return (
+    <div className="App">
+      <Router history={history}>
+        <Navbar bg="primary" expand="lg" variant="dark" >
+          <Navbar.Brand href="/">Image Gallery App</Navbar.Brand>
+          <Navbar.Toggle aria-controls="basic-navbar-nav" />
+          <Navbar.Collapse id="basic-navbar-nav">
+            <Nav className="mr-auto">
+              <Nav.Link href="/">Home</Nav.Link>
+              <Nav.Link href="/imagesearch">Image Search</Nav.Link>
+              <Nav.Link href="/videosearch">Video Search</Nav.Link>
+            </Nav>
+          </Navbar.Collapse>
+        </Navbar>
+        <Route path="/" exact component={HomePage} />
+        <Route path="/imagesearch" exact component={ImageSearchPage} />
+        <Route path="/videosearch" exact component={VideoSearchPage} />
+      </Router>
+    </div>
+  );
+}
+export default App;
+import React from 'react';
+import { useState, useEffect } from 'react';
+import './HomePage.css';
+import InfiniteScroll from 'react-infinite-scroller';
+import Figure from 'react-bootstrap/Figure'
+import { getPhotos } from './requests';
+let page = 0;
+function HomePage() {
+    const [items, setItems] = useState([]);
+    const [initialized, setInitialized] = useState(false);
+    const [totalHits, setTotalHits] = useState(0);
+const getNewPhotos = async () => {
+        page++;
+        const response = await getPhotos(page);
+        setItems(items.concat(response.data.hits));
+        setTotalHits(response.data.totalHits);
+        setInitialized(true);
+    }
+useEffect(() => {
+        if (!initialized) {
+            getNewPhotos();
+        }
+    });
+return (
+        <div className="HomePage">
+            <InfiniteScroll
+                pageStart={page}
+                loadMore={getNewPhotos}
+                hasMore={totalHits > items.length}
+                threshold={100}
+            >
+                {items.map((i, index) =>
+                    <Figure key={index}>
+                        <Figure.Image
+                            width={window.innerWidth / 3.5}
+                            src={i.previewURL}
+                        />
+                    </Figure>
+                )}
+            </InfiniteScroll>
+        </div>
+    );
+}
+export default HomePage;
+.figure {
+  margin: 5px !important;
+}
+.HomePage {
+  text-align: center;
+}
+
+import React from 'react';
+import { Formik } from 'formik';
+import Form from 'react-bootstrap/Form';
+import Col from 'react-bootstrap/Col';
+import Button from 'react-bootstrap/Button';
+import * as yup from 'yup';
+import './ImageSearchPage.css';
+import { searchPhotos } from './requests';
+import { useState, useEffect } from 'react';
+import InfiniteScroll from 'react-infinite-scroller';
+import Figure from 'react-bootstrap/Figure'
+let page = 1;
+const schema = yup.object({
+  query: yup.string().required('Query is required'),
+});
+function ImageSearchPage() {
+  const [items, setItems] = useState([]);
+  const [totalHits, setTotalHits] = useState(0);
+  const [keyword, setKeyword] = useState('');
+const handleSubmit = async (evt) => {
+    const isValid = await schema.validate(evt);
+    if (!isValid) {
+      return;
+    }
+    const data = {
+      q: encodeURIComponent(evt.query),
+      image_type: 'photo',
+      page
+    }
+    const response = await searchPhotos(data);
+    setTotalHits(response.data.totalHits);
+    setItems(items.concat(response.data.hits));
+    setKeyword(evt.query);
+  }
+const getMorePhotos = async () => {
+    page++;
+    const data = {
+      q: encodeURIComponent(keyword),
+      image_type: 'photo',
+      page
+    }
+    const response = await searchPhotos(data);
+    setTotalHits(response.data.totalHits);
+    setItems(items.concat(response.data.hits));
+  }
+return (
+    <div className="ImageSearchPage">
+      <Formik
+        validationSchema={schema}
+        onSubmit={handleSubmit}
+      >
+        {({
+          handleSubmit,
+          handleChange,
+          handleBlur,
+          values,
+          touched,
+          isInvalid,
+          errors,
+        }) => (
+            <Form noValidate onSubmit={handleSubmit}>
+              <Form.Row>
+                <Form.Group as={Col} md="12" controlId="firstName">
+                  <Form.Label>
+                    <h4>Image Search</h4>
+                  </Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="query"
+                    placeholder="Keyword"
+                    value={values.query || ''}
+                    onChange={handleChange}
+                    isInvalid={touched.description && errors.query}
+                  />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.query}
+                  </Form.Control.Feedback>
+                </Form.Group>
+              </Form.Row>
+              <Button type="submit">Search</Button>
+            </Form>
+          )}
+      </Formik>
+      <InfiniteScroll
+        pageStart={page}
+        loadMore={getMorePhotos}
+        hasMore={totalHits > items.length}
+        threshold={100}
+      >
+        {items.map((i, index) =>
+          <Figure key={index}>
+            <Figure.Image
+              width={window.innerWidth / 3.5}
+              src={i.previewURL}
+            />
+          </Figure>
+        )}
+      </InfiniteScroll>
+    </div>
+  );
+}
+export default ImageSearchPage;
+
+.ImageSearchPage{
+    padding: 20px;
+}
+const APIURL = 'https://pixabay.com/api';
+const axios = require('axios');
+const querystring = require('querystring');
+const APIKEY = 'Pixabay API key';
+export const getPhotos = (page = 1) => axios.get(`${APIURL}/?key=${APIKEY}&page=${page}`);
+export const searchPhotos = (data) => {
+    data['key'] = APIKEY;
+    return axios.get(`${APIURL}/?${querystring.encode(data)}`);
+}
+export const searchVideos = (data) => {
+    data['key'] = APIKEY;
+    return axios.get(`${APIURL}/videos/?${querystring.encode(data)}`);
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="shortcut icon" href="%PUBLIC_URL%/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Web site created using create-react-app" />
+  <link rel="apple-touch-icon" href="logo192.png" />
+  <!--
+      manifest.json provides metadata used when your web app is installed on a
+      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
+    -->
+  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+  <!--
+      Notice the use of %PUBLIC_URL% in the tags above.
+      It will be replaced with the URL of the `public` folder during the build.
+      Only files inside the `public` folder can be referenced from the HTML.
+Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
+      work correctly both with client-side routing and a non-root public URL.
+      Learn how to configure a non-root public URL by running `npm run build`.
+    -->
+  <title>Image Gallery App</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+    integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous" />
+</head>
+<body>
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <div id="root"></div>
+  <!--
+      This HTML file is a template.
+      If you open it directly in the browser, you will see an empty page.
+You can add webfonts, meta tags, or analytics to this file.
+      The build step will place the bundled scripts into the <body> tag.
+To begin the development, run `npm start` or `yarn start`.
+      To create a production bundle, use `npm run build` or `yarn build`.
+    -->
+</body>
+</html>
